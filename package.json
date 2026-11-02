@@ -1,0 +1,16 @@
+{
+  "name": "hader",
+  "version": "0.1.0",
+  "description": "Open-source staff attendance and payroll for small businesses. Employees check in by scanning a QR code that changes every minute (or with a PIN), request leave from their phone, and payroll adds up absences, lateness and overtime.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": { "qrcode": "1.5.4" },
+  "license": "MIT",
+  "keywords": ["attendance", "time-clock", "payroll", "hr", "leave-management", "qr-code", "small-business", "self-hosted", "arabic"]
+}

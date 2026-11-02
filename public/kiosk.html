@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<title>Attendance</title>
+<style>
+  /* Entrance tablet: a QR code that changes every minute, plus an optional PIN pad */
+  :root { --c: #4338CA; color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--c); color: #fff; font: 18px/1.5 "Segoe UI", "Noto Sans Arabic", Tahoma, system-ui, sans-serif; display: grid; place-items: center; padding: 16px; }
+  .wrap { display: grid; grid-template-columns: auto auto; gap: 5vmin; align-items: center; }
+  @media (max-aspect-ratio: 1/1) { .wrap { grid-template-columns: 1fr; justify-items: center; } }
+  .box { display: grid; gap: 14px; justify-items: center; text-align: center; }
+  h1 { margin: 0; font-size: clamp(1.4rem, 4vmin, 2.4rem); }
+  .clock { font-size: clamp(2rem, 8vmin, 4.5rem); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+  .qr { background: #fff; border-radius: 22px; padding: 16px; width: min(56vmin, 420px); aspect-ratio: 1; display: grid; place-items: center; }
+  .qr svg { width: 100%; height: 100%; }
+  .bar { width: min(56vmin, 420px); height: 6px; background: rgba(255,255,255,.25); border-radius: 3px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: #fff; transition: width 1s linear; }
+  .pad { background: rgba(255,255,255,.1); border-radius: 22px; padding: 18px; display: grid; gap: 10px; width: min(80vw, 300px); }
+  .dots { font-size: 2rem; letter-spacing: .5em; text-align: center; min-height: 2.6rem; direction: ltr; }
+  .keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; direction: ltr; }
+  .keys button { font: inherit; font-size: 1.5rem; padding: 12px 0; border: 0; border-radius: 14px; background: rgba(255,255,255,.18); color: #fff; cursor: pointer; }
+  .keys button:active { background: rgba(255,255,255,.35); }
+  .flash { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(21,128,61,.96); font-size: clamp(1.6rem, 6vmin, 3rem); font-weight: 800; text-align: center; padding: 24px; z-index: 5; }
+  .flash.bad { background: rgba(185,28,28,.96); }
+  .recent { font-size: .9rem; opacity: .85; display: grid; gap: 2px; }
+  a { color: #fff; }
+  button.big { font: inherit; font-weight: 700; padding: 14px 22px; border: 0; border-radius: 14px; background: #fff; color: var(--c); cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="app"><p>…</p></div>
+<script>
+(function () {
+  'use strict';
+  var S = {
+    ar: { scan: 'امسح الكود بموبايلك للحضور والانصراف', pin: 'أو اكتب رقمك السري', hi: 'أهلاً', bye: 'مع السلامة', inAt: 'حضور', outAt: 'انصراف', late: 'متأخر', min: 'دقيقة', wrong: 'رقم غلط', dup: 'اتسجلت من شوية', many: 'محاولات كتير، استنى شوية', pair: 'استخدم الجهاز ده كشاشة حضور', pairLead: 'الجهاز ده هيعرض كود الحضور. تقدر تقفل لوحة التحكم بعد كده.', signIn: 'سجّل دخول للوحة التحكم الأول', dash: 'لوحة التحكم' },
+    en: { scan: 'Scan with your phone to check in or out', pin: 'or type your PIN', hi: 'Welcome', bye: 'See you', inAt: 'In', outAt: 'Out', late: 'Late', min: 'min', wrong: 'Wrong PIN', dup: 'Already recorded a moment ago', many: 'Too many tries, please wait', pair: 'Use this device as the attendance screen', pairLead: 'This device will show the attendance code. You can sign out of the dashboard afterwards.', signIn: 'Sign in to the dashboard first', dash: 'Dashboard' },
+  };
+  var L = 'ar', state = null, expires = 0, total = 1, code = '';
+  function t(k) { return S[L][k]; }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function $(id) { return document.getElementById(id); }
+  var app = $('app');
+  function api(p, body) {
+    return fetch(p, { method: body ? 'POST' : 'GET', headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); });
+  }
+  function fmt(iso) { return new Date(iso).toLocaleTimeString(L === 'ar' ? 'ar-EG' : 'en-GB', { hour: '2-digit', minute: '2-digit' }); }
+  function flash(html, bad) {
+    var f = document.createElement('div');
+    f.className = 'flash' + (bad ? ' bad' : '');
+    f.setAttribute('role', 'alert');
+    f.innerHTML = html;
+    document.body.appendChild(f);
+    setTimeout(function () { f.remove(); }, 2600);
+  }
+  function boot() {
+    api('/api/kiosk/state').then(function (r) {
+      state = r.data;
+      L = state.lang === 'en' ? 'en' : 'ar';
+      document.documentElement.lang = L; document.documentElement.dir = L === 'ar' ? 'rtl' : 'ltr';
+      document.title = (state.businessName || 'Hader');
+      if (state.kiosk) return screen();
+      if (state.owner) {
+        app.innerHTML = '<div class="box"><h1>' + esc(state.businessName) + '</h1><p>' + t('pairLead') + '</p><button class="big" id="pr" type="button">' + t('pair') + '</button></div>';
+        $('pr').onclick = function () { api('/api/kiosk/pair', {}).then(boot); };
+        return;
+      }
+      app.innerHTML = '<div class="box"><p>' + t('signIn') + '</p><a href="/">' + t('dash') + '</a></div>';
+    });
+  }
+  function screen() {
+    app.innerHTML = '<div class="wrap"><div class="box"><h1>' + esc(state.businessName) + '</h1><div class="clock" id="clk"></div><div class="qr" id="qr"></div><div class="bar"><i id="tb" style="width:100%"></i></div><div>' + t('scan') + '</div><div class="recent" id="rc"></div></div>' +
+      (state.allowPin ? '<div class="pad"><div>' + t('pin') + '</div><div class="dots" id="dots"></div><div class="keys">' + [1, 2, 3, 4, 5, 6, 7, 8, 9, '⌫', 0, '✓'].map(function (k) { return '<button type="button" data-k="' + k + '">' + k + '</button>'; }).join('') + '</div></div>' : '') + '</div>';
+    document.querySelectorAll('[data-k]').forEach(function (b) {
+      b.onclick = function () { var k = b.dataset.k; if (k === '⌫') code = code.slice(0, -1); else if (k === '✓') return submit(); else if (code.length < 6) code += k; draw(); };
+    });
+    document.onkeydown = function (e) { if (!state.allowPin) return; if (/^\d$/.test(e.key) && code.length < 6) { code += e.key; draw(); } else if (e.key === 'Backspace') { code = code.slice(0, -1); draw(); } else if (e.key === 'Enter') submit(); };
+    refresh();
+  }
+  function draw() { var d = $('dots'); if (d) d.textContent = code.replace(/./g, '•'); }
+  function submit() {
+    if (!code) return;
+    var pin = code; code = ''; draw();
+    api('/api/kiosk/pin', { pin: pin }).then(function (r) {
+      if (!r.ok) return flash(r.status === 429 ? t('many') : t('wrong'), true);
+      var d = r.data;
+      if (d.action === 'duplicate') return flash(esc(d.name) + '<br>' + t('dup'));
+      flash((d.action === 'in' ? t('hi') : t('bye')) + ' ' + esc(d.name) + ' ✓<br>' + (d.action === 'in' ? t('inAt') : t('outAt')) + ' ' + fmt(d.at) + (d.action === 'in' && d.late ? '<br><small>' + t('late') + ' ' + d.late + ' ' + t('min') + '</small>' : ''));
+      refresh();
+    });
+  }
+  function refresh() {
+    api('/api/kiosk/code', {}).then(function (r) {
+      if (r.status === 401) return boot();
+      expires = Date.parse(r.data.expiresAt); total = expires - Date.now();
+      $('qr').innerHTML = r.data.svg;
+      $('rc').innerHTML = r.data.recent.map(function (x) { return '<span>' + esc(x.name) + ' · ' + (x.action === 'in' ? t('inAt') : t('outAt')) + ' ' + fmt(x.at) + '</span>'; }).join('');
+    });
+  }
+  setInterval(function () {
+    var c = $('clk');
+    if (c) c.textContent = new Date().toLocaleTimeString(L === 'ar' ? 'ar-EG' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
+    if (!expires) return;
+    var left = expires - Date.now(), tb = $('tb');
+    if (tb) tb.style.width = Math.max(0, (left / total) * 100) + '%';
+    if (left < 3000) { expires = 0; refresh(); }
+  }, 1000);
+  boot();
+})();
+</script>
+</body>
+</html>

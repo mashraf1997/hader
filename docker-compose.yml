@@ -1,0 +1,19 @@
+# One-click deploy on a Hostinger VPS (Docker Manager), or anywhere with Docker:
+#   docker compose up -d
+# Then open http://YOUR-SERVER-IP and create your password.
+services:
+  hader:
+    image: ghcr.io/mashraf1997/hader:latest
+    container_name: hader
+    restart: unless-stopped
+    ports:
+      - "80:3000"
+    environment:
+      - NODE_ENV=production
+      - SETUP_TOKEN=${SETUP_TOKEN:-}
+      - DEMO_MODE=${DEMO_MODE:-false}
+    volumes:
+      - hader-data:/data
+
+volumes:
+  hader-data:

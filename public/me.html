@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#4338CA">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<title>My attendance</title>
+<style>
+  /* Employee phone page: result of a scan, today, this month, and leave requests */
+  :root { --c: #4338CA; --ink: #1C1917; --muted: #6B6760; --bg: #F5F6FA; --card: #FFFFFF; --line: #E3E4EC; --good: #15803D; --bad: #B91C1C; --warn: #B45309; color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root { --ink: #ECEAE4; --muted: #A19D94; --bg: #121318; --card: #1C1D24; --line: #31323D; color-scheme: dark; } }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body { background: var(--bg); color: var(--ink); font: 16px/1.55 "Segoe UI", "Noto Sans Arabic", Tahoma, system-ui, sans-serif; padding: max(18px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom)); }
+  main { max-width: 440px; margin: 0 auto; display: grid; gap: 14px; }
+  h1 { margin: 0; font-size: 1.4rem; }
+  h2 { margin: 0; font-size: 1.05rem; }
+  .muted { color: var(--muted); }
+  .small { font-size: .88rem; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px; display: grid; gap: 10px; }
+  .result { border: 0; color: #fff; text-align: center; padding: 26px 16px; }
+  .result.in { background: var(--good); }
+  .result.out { background: var(--c); }
+  .result.bad { background: var(--bad); }
+  .result .big { font-size: 2.6rem; font-weight: 800; line-height: 1.1; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px; text-align: center; }
+  .stat b { display: block; font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--muted); font-size: .8rem; }
+  .row { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .82rem; font-weight: 600; background: var(--bg); border: 1px solid var(--line); }
+  .pill.good { color: var(--good); } .pill.bad { color: var(--bad); } .pill.warn { color: var(--warn); }
+  label { display: grid; gap: 4px; font-weight: 600; font-size: .92rem; }
+  input, select { min-width: 0; max-width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); width: 100%; }
+  .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+  .btn { font: inherit; font-weight: 700; border: 0; border-radius: 12px; padding: 12px 16px; background: var(--c); color: #fff; cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--c); outline-offset: 2px; }
+  .list { display: grid; gap: 6px; }
+  .list .row { border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+  .list .row:last-child { border: 0; }
+</style>
+</head>
+<body>
+<main id="m"><p class="muted">…</p></main>
+<script>
+(function () {
+  'use strict';
+  var S = {
+    ar: { noLink: 'افتح الرابط الشخصي اللي مديرك بعتهولك الأول، وبعد كده امسح الكود.', bad: 'الرابط ده مش شغال. اطلب رابط جديد من مديرك.', in: 'حضور', out: 'انصراف', done: 'اتسجل ✓', dup: 'اتسجلت من شوية', expired: 'الكود ده قديم. امسح الكود اللي على الشاشة دلوقتي.', many: 'محاولات كتير، جرّب بعد شوية', late: 'متأخر', min: 'دقيقة', today: 'النهارده', s_in: 'موجود', s_out: 'انصرفت', s_absent: 'غايب', s_leave: 'إجازة', s_off: 'يوم راحة', s_expected: 'لسه مسجلتش', shift: 'الشيفت', month: 'الشهر ده', present: 'حضور', absent: 'غياب', lateM: 'دقايق تأخير', hours: 'ساعات', leaveDays: 'إجازات', overtime: 'إضافي', history: 'آخر أيام', open: 'لسه جوه', leave: 'طلب إجازة', from: 'من', to: 'لحد', type: 'النوع', reason: 'السبب', send: 'ابعت الطلب', sent: 'الطلب اتبعت ✓', t_annual: 'سنوية', t_sick: 'مرضي', t_unpaid: 'بدون مرتب', t_other: 'أخرى', st_pending: 'مستني', st_approved: 'مقبولة', st_rejected: 'مرفوضة', hint: 'للحضور أو الانصراف: امسح الكود اللي على شاشة الحضور بكاميرا موبايلك.' },
+    en: { noLink: 'Open the personal link your manager sent you first, then scan the code.', bad: 'This link does not work. Ask your manager for a new one.', in: 'Checked in', out: 'Checked out', done: 'Recorded ✓', dup: 'Already recorded a moment ago', expired: 'This code is old. Scan the code on the screen now.', many: 'Too many tries, please wait', late: 'Late', min: 'min', today: 'Today', s_in: 'In', s_out: 'Left', s_absent: 'Absent', s_leave: 'On leave', s_off: 'Day off', s_expected: 'Not checked in', shift: 'Shift', month: 'This month', present: 'Present', absent: 'Absent', lateM: 'Late minutes', hours: 'Hours', leaveDays: 'Leave', overtime: 'Overtime', history: 'Recent days', open: 'Still in', leave: 'Request leave', from: 'From', to: 'To', type: 'Type', reason: 'Reason', send: 'Send request', sent: 'Request sent ✓', t_annual: 'Annual', t_sick: 'Sick', t_unpaid: 'Unpaid', t_other: 'Other', st_pending: 'Waiting', st_approved: 'Approved', st_rejected: 'Rejected', hint: 'To check in or out, scan the code on the attendance screen with your phone camera.' },
+  };
+  var L = 'ar', m = document.getElementById('m');
+  function t(k) { return S[L][k]; }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function api(p, body) {
+    return fetch(p, { method: body ? 'POST' : 'GET', headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined, credentials: 'same-origin' })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); });
+  }
+  function setLang(l) { L = l === 'en' ? 'en' : 'ar'; document.documentElement.lang = L; document.documentElement.dir = L === 'ar' ? 'rtl' : 'ltr'; }
+  var tz;
+  function fmt(iso) { return iso ? new Date(iso).toLocaleTimeString(L === 'ar' ? 'ar-EG' : 'en-GB', { hour: '2-digit', minute: '2-digit', timeZone: tz }) : '—'; }
+
+  function home(result) {
+    api('/api/me').then(function (r) {
+      var d = r.data;
+      setLang(d.lang);
+      tz = d.tz;
+      document.title = d.businessName || 'Hader';
+      if (!d.me) { m.innerHTML = '<h1>' + esc(d.businessName) + '</h1><div class="card">' + t('noLink') + '</div>'; return; }
+      var st = d.today, mo = d.month;
+      var pill = { in: 'good', absent: 'bad', leave: 'warn' }[st.state] || '';
+      var today = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
+      m.innerHTML = (result || '') +
+        '<div class="row"><div><h1>' + esc(d.me.name) + '</h1><span class="muted small">' + esc(d.me.title) + ' · ' + esc(d.businessName) + '</span></div></div>' +
+        '<section class="card"><div class="row"><h2>' + t('today') + '</h2><span class="pill ' + pill + '">' + t('s_' + st.state) + '</span></div>' +
+        '<div class="row small"><span>' + t('shift') + ': <b dir="ltr">' + esc(st.shift) + '</b></span><span>' + (st.firstIn ? t('in') + ' ' + fmt(st.firstIn) : '') + (st.lastOut ? ' · ' + t('out') + ' ' + fmt(st.lastOut) : '') + '</span></div>' +
+        (st.lateBy ? '<span class="small" style="color:var(--bad)">' + t('late') + ' ' + st.lateBy + ' ' + t('min') + '</span>' : '') + '<p class="small muted" style="margin:0">' + t('hint') + '</p></section>' +
+        '<section class="card"><h2>' + t('month') + '</h2><div class="stats"><div class="stat"><b>' + mo.present + '</b><span>' + t('present') + '</span></div><div class="stat"><b>' + mo.absent + '</b><span>' + t('absent') + '</span></div><div class="stat"><b>' + mo.lateMinutes + '</b><span>' + t('lateM') + '</span></div>' +
+        '<div class="stat"><b>' + mo.workedHours + '</b><span>' + t('hours') + '</span></div><div class="stat"><b>' + mo.overtimeHours + '</b><span>' + t('overtime') + '</span></div><div class="stat"><b>' + mo.leaveDays + '</b><span>' + t('leaveDays') + '</span></div></div></section>' +
+        (d.punches.length ? '<section class="card"><h2>' + t('history') + '</h2><div class="list">' + d.punches.map(function (p) { return '<div class="row small"><span>' + esc(p.day) + '</span><span>' + fmt(p.in) + ' → ' + (p.out ? fmt(p.out) : p.open ? t('open') : '—') + '</span></div>'; }).join('') + '</div></section>' : '') +
+        '<form class="card" id="lf"><h2>' + t('leave') + '</h2><div class="grid2"><label>' + t('from') + '<input type="date" name="from" value="' + today + '" required></label><label>' + t('to') + '<input type="date" name="to" value="' + today + '"></label></div>' +
+        '<label>' + t('type') + '<select name="type">' + ['annual', 'sick', 'unpaid', 'other'].map(function (x) { return '<option value="' + x + '">' + t('t_' + x) + '</option>'; }).join('') + '</select></label><label>' + t('reason') + '<input name="reason"></label><button class="btn" type="submit">' + t('send') + '</button>' +
+        (d.leaves.length ? '<div class="list">' + d.leaves.map(function (l) { return '<div class="row small"><span>' + esc(l.from) + (l.to !== l.from ? ' → ' + esc(l.to) : '') + ' · ' + t('t_' + l.type) + '</span><span class="pill ' + ({ pending: 'warn', approved: 'good', rejected: 'bad' }[l.status]) + '">' + t('st_' + l.status) + '</span></div>'; }).join('') + '</div>' : '') + '</form>';
+      var f = document.getElementById('lf');
+      f.onsubmit = function (e) {
+        e.preventDefault();
+        api('/api/me/leave', { from: f.from.value, to: f.to.value, type: f.type.value, reason: f.reason.value }).then(function (x) { if (x.ok) home('<div class="card result in"><div class="big">' + t('sent') + '</div></div>'); });
+      };
+    });
+  }
+
+  var path = location.pathname, mt;
+  if ((mt = path.match(/^\/e\/([\w-]+)$/))) {
+    api('/api/me/link', { token: mt[1] }).then(function (r) {
+      history.replaceState(null, '', '/me');
+      if (!r.ok) { m.innerHTML = '<div class="card">' + t('bad') + '</div>'; return; }
+      home();
+    });
+  } else if ((mt = path.match(/^\/k\/([A-Za-z0-9]+)$/))) {
+    api('/api/me/punch', { code: mt[1] }).then(function (r) {
+      history.replaceState(null, '', '/me');
+      if (r.status === 401) { api('/api/me').then(function (x) { setLang(x.data.lang); m.innerHTML = '<h1>' + esc(x.data.businessName) + '</h1><div class="card">' + t('noLink') + '</div>'; }); return; }
+      var d = r.data, html;
+      if (!r.ok) html = '<div class="card result bad"><div class="big">✕</div>' + (d.error === 'too_many' ? t('many') : t('expired')) + '</div>';
+      else if (d.action === 'duplicate') html = '<div class="card result out"><div class="big">' + t('dup') + '</div></div>';
+      else { if (navigator.vibrate) navigator.vibrate(120); html = '<div class="card result ' + d.action + '"><div class="big">' + t(d.action) + ' ✓</div>' + fmt(d.at) + (d.action === 'in' && d.today.lateBy ? '<br>' + t('late') + ' ' + d.today.lateBy + ' ' + t('min') : '') + '</div>'; }
+      home(html);
+    });
+  } else home();
+})();
+</script>
+</body>
+</html>
